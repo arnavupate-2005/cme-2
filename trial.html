@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Telecom • CME Impact Dashboard</title>
+
+<!-- Plotly -->
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700;800&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --bg-1: #f6faf7;  /* cream */
+    --bg-2: #eaf7f3;  /* very light green */
+    --card: #ffffff;
+    --muted: #5e6b63;
+    --text: #0b2b24;
+    --accent-cyan: #00bfb4;
+    --accent-green: #67d9a3;
+    --accent-olive: #4b8f6a;
+    --warn: #ff8a1f;
+    --danger: #ff4d4d;
+    --glass: rgba(9,42,34,0.04);
+    --radius: 14px;
+    --shadow: 0 10px 30px rgba(18,40,34,0.06);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg-1),var(--bg-2));font-family:Inter,system-ui,Arial;color:var(--text);-webkit-font-smoothing:antialiased}
+  .app {
+    max-width:1300px;margin:18px auto;padding:18px; display:flex;flex-direction:column;gap:14px;
+  }
+
+  /* Header */
+  header{display:flex;align-items:center;gap:14px}
+  .logo{width:60px;height:60px;border-radius:12px;background:linear-gradient(180deg,#dff7ee,#baf0da);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--accent-olive);box-shadow:var(--shadow)}
+  .title{display:flex;flex-direction:column}
+  .title h1{margin:0;font-size:20px;font-weight:800}
+  .title p{margin:0;color:var(--muted);font-size:13px}
+
+  /* Layout grid */
+  .grid {display:grid;grid-template-columns: 360px 1fr; gap:16px; align-items:start}
+  @media (max-width:1000px){ .grid{grid-template-columns: 1fr} }
+
+  /* Left column */
+  .left {display:flex;flex-direction:column;gap:12px}
+  .panel {background:var(--card);border-radius:var(--radius);padding:12px;border:1px solid rgba(0,0,0,0.04);box-shadow:var(--shadow)}
+  .panel .heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .panel .heading h3{margin:0;font-size:15px}
+  .small-kv{display:flex;justify-content:space-between;padding:8px 6px;border-radius:8px;background:var(--bg-2);margin-bottom:6px}
+  .kv-k{color:var(--muted);font-size:13px} .kv-v{font-weight:700;color:var(--accent-olive)}
+  .panel .note{color:var(--muted);font-size:13px;margin-top:8px}
+
+  /* Globe / ionosphere canvas */
+  #ionosphereCanvas{width:320px;height:320px;border-radius:12px;background:linear-gradient(180deg,#e6fbf6,#d8f6ee);display:block;border:1px solid rgba(0,0,0,0.03)}
+
+  /* Right column */
+  .right {display:flex;flex-direction:column;gap:12px}
+  .alert-banner{
+    display:flex;align-items:center;gap:18px;padding:18px;border-radius:12px;background:linear-gradient(90deg,#ffffff,#effff8);border:1px solid rgba(0,0,0,0.04);box-shadow:var(--shadow)
+  }
+  .alert-left{display:flex;flex-direction:column;gap:6px}
+  .alert-title{font-weight:800;font-size:20px}
+  .alert-sub{color:var(--muted);font-size:13px}
+  .alert-right{text-align:right}
+  .alert-score{font-size:28px;font-weight:900;color:var(--accent-olive)}
+  .alert-level{font-weight:800;font-size:16px;padding:6px 10px;border-radius:10px;color:#fff}
+  .level-safe{background:linear-gradient(90deg,#2abf7a,#68d59c)}
+  .level-watch{background:linear-gradient(90deg,#ffd28a,#ffb857);color:#3a2a00}
+  .level-moderate{background:linear-gradient(90deg,#ffb089,#ff8a1f)}
+  .level-severe{background:linear-gradient(90deg,#ff6b6b,#ff4d4d)}
+
+  /* small charts row */
+  .charts-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  @media (max-width:900px){ .charts-row{grid-template-columns:1fr} }
+  .chart-card{padding:8px;border-radius:10px;background:var(--bg-2);min-height:150px;border:1px solid rgba(0,0,0,0.03)}
+
+  /* big metrics & graph */
+  .big-card{display:flex;gap:12px;padding:12px;border-radius:12px;background:var(--card);border:1px solid rgba(0,0,0,0.04);box-shadow:var(--shadow)}
+  .metric{flex:1;padding:8px;border-radius:10px;background:linear-gradient(180deg,#ffffff,#f6fff6);text-align:center}
+  .metric .m-k{color:var(--muted);font-size:13px}
+  .metric .m-v{font-weight:800;color:var(--accent-cyan);font-size:18px}
+
+  /* Recommendations / SOP area (scrolldown) */
+  .recommendations{margin-top:18px;display:flex;flex-direction:column;gap:12px}
+  .rec-card{background:linear-gradient(180deg,#fbfff9,#f3fbf5);padding:14px;border-radius:12px;border:1px solid rgba(0,0,0,0.03)}
+  .rec-card h4{margin:0 0 8px 0}
+  .rec-list{display:flex;flex-direction:column;gap:8px}
+  .rec-item{display:flex;gap:12px;align-items:flex-start}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .dot.info{background:var(--accent-cyan)}
+  .dot.warn{background:var(--warn)}
+  .dot.danger{background:var(--danger)}
+
+  /* Footer */
+  footer{margin-top:20px;text-align:center;color:var(--muted);font-size:13px;padding-bottom:20px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- header -->
+  <header>
+    <div class="logo">TC</div>
+    <div class="title">
+      <h1>Telecom CME Impact Dashboard</h1>
+      <p>Tailored insights for telecom NOC engineers — real-time CME detection & operational recommendations</p>
+    </div>
+  </header>
+
+  <!-- main grid -->
+  <div class="grid">
+
+    <!-- LEFT: ionosphere visual + quick summary -->
+    <div class="left">
+
+      <div class="panel">
+        <div class="heading"><h3>Ionosphere Layer • Telecom Focus</h3><div style="color:var(--muted);font-size:12px">Altitude: ~250–500 km (TEC layer)</div></div>
+        <canvas id="ionosphereCanvas"></canvas>
+        <div class="note">Animated visualization shows disturbed regions (orange/red) where HF/GNSS effects likely. Particles illustrate propagation — for demo only.</div>
+      </div>
+
+      <div class="panel">
+        <div class="heading"><h3>Quick Metrics</h3><div style="color:var(--muted);font-size:12px">Latest telemetry (simulated)</div></div>
+        <div class="small-kv"><div class="kv-k">Solar Wind</div><div class="kv-v" id="kvSpeed">— km/s</div></div>
+        <div class="small-kv"><div class="kv-k">IMF Bz</div><div class="kv-v" id="kvBz">— nT</div></div>
+        <div class="small-kv"><div class="kv-k">Kp Index</div><div class="kv-v" id="kvKp">—</div></div>
+        <div class="small-kv"><div class="kv-k">TEC (est.)</div><div class="kv-v" id="kvTec">— TECU</div></div>
+        <div class="note">These are core inputs we use to compute a <strong>Telecom Risk Index</strong>.</div>
+      </div>
+
+      <div class="panel">
+        <div class="heading"><h3>Critical Links</h3><div style="color:var(--muted);font-size:12px">Watchlist</div></div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;justify-content:space-between"><div style="color:var(--muted)">GEO Link • Sat-A (Indian)</div><div id="linkA" style="font-weight:800;color:#2c6f46">OK</div></div>
+          <div style="display:flex;justify-content:space-between"><div style="color:var(--muted)">GEO Link • Sat-B (Intl)</div><div id="linkB" style="font-weight:800;color:#2c6f46">OK</div></div>
+          <div style="display:flex;justify-content:space-between"><div style="color:var(--muted)">Backbone Latency (Trans-Asia)</div><div id="linkLatency" style="font-weight:800;color:var(--muted)">— ms</div></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: Alerts + charts -->
+    <div class="right">
+
+      <!-- ALERT banner (central) -->
+      <div class="alert-banner" role="status" aria-live="polite">
+        <div class="alert-left">
+          <div class="alert-title">CURRENT CME STATUS</div>
+          <div class="alert-sub">Primary telecom concern: GNSS / HF degradation and GEO link margin reduction</div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <div style="display:flex;flex-direction:column"><div style="color:var(--muted);font-size:13px">Alert Score</div><div class="alert-score" id="alertScore">0.00</div></div>
+            <div style="display:flex;flex-direction:column;margin-left:12px"><div style="color:var(--muted);font-size:13px">Predicted Next CME</div><div style="font-weight:800" id="predNext">—</div></div>
+          </div>
+        </div>
+        <div class="alert-right">
+          <div id="alertLevelBadge" class="alert-level level-safe">NOMINAL</div>
+          <div style="color:var(--muted);font-size:12px;margin-top:8px" id="nextEta">Next ETA: —</div>
+        </div>
+      </div>
+
+      <!-- small charts -->
+      <div class="charts-row">
+        <div class="chart-card panel">
+          <div style="font-weight:700;margin-bottom:6px">Solar Wind Speed</div>
+          <div id="chartVsw" style="height:150px"></div>
+        </div>
+
+        <div class="chart-card panel">
+          <div style="font-weight:700;margin-bottom:6px">IMF Bz (nT)</div>
+          <div id="chartBz" style="height:150px"></div>
+        </div>
+
+        <div class="chart-card panel">
+          <div style="font-weight:700;margin-bottom:6px">Kp Index</div>
+          <div id="chartKp" style="height:150px"></div>
+        </div>
+      </div>
+
+      <!-- big chart area -->
+      <div class="big-card">
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div style="font-weight:700">TEC Estimate & HF Blackout Index</div>
+            <div style="color:var(--muted);font-size:13px">Updated: <span id="lastUpdate">—</span></div>
+          </div>
+          <div id="chartTec" style="width:100%;height:260px"></div>
+        </div>
+
+        <div style="width:260px;display:flex;flex-direction:column;gap:8px">
+          <div style="background:linear-gradient(180deg,#fff,#f7fff8);padding:10px;border-radius:10px;text-align:center">
+            <div style="color:var(--muted);font-size:13px">GNSS Error (est.)</div>
+            <div style="font-weight:800;font-size:20px;color:var(--accent-cyan)" id="gnssErr">0.0 m</div>
+          </div>
+          <div style="background:linear-gradient(180deg,#fff,#fff7f0);padding:10px;border-radius:10px;text-align:center">
+            <div style="color:var(--muted);font-size:13px">HF Blackout Index</div>
+            <div style="font-weight:800;font-size:20px;color:var(--warn)" id="hfIndex">0</div>
+          </div>
+          <div style="background:linear-gradient(180deg,#fff,#f7fff8);padding:10px;border-radius:10px;text-align:center">
+            <div style="color:var(--muted);font-size:13px">Link SNR (GEO)</div>
+            <div style="font-weight:800;font-size:20px;color:var(--accent-olive)" id="linkSnr">— dB</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Recommendations and SOPs (scrollable extended content) -->
+  <div class="recommendations">
+    <div class="rec-card">
+      <h4>Operational Recommendations (Automated)</h4>
+      <div class="rec-list" id="recList">
+        <div class="rec-item"><div class="dot info"></div><div><strong>Nominal:</strong> All systems nominal. No immediate action required.</div></div>
+        <div class="rec-item"><div class="dot warn"></div><div><strong>Watch:</strong> Consider rerouting critical GNSS-dependent traffic to terrestrial backups in next 2–4 hours.</div></div>
+        <div class="rec-item"><div class="dot danger"></div><div><strong>Severe:</strong> If link margins fall below 3 dB, place GEO satellites into safe/low-power mode & activate backup LEO/GEO routing.</div></div>
+      </div>
+    </div>
+
+    <div class="rec-card">
+      <h4>Standard Operating Procedures (SOP)</h4>
+      <ol style="color:var(--muted);line-height:1.6">
+        <li>Confirm alert via two sensors (IMF Bz & sudden jump in solar wind speed) before initiating critical failover.</li>
+        <li>Notify NOC leads via SMS & email; escalate to on-call RF engineer.</li>
+        <li>Reduce antenna transmit power if SNR drops below safety threshold to protect hardware.</li>
+        <li>Document event with timestamps & telemetry and upload to incident repo (CSV export available).</li>
+      </ol>
+    </div>
+
+    <div class="rec-card">
+      <h4>Downloadable Report</h4>
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button class="btn" onclick="downloadReport()">Download CSV</button>
+        <button class="btn" onclick="downloadJSON()">Download JSON</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    © 2025 Telecom CME Dashboard • Prototype — replace simulated feed with Aditya-L1 / enterprise telemetry.
+  </footer>
+</div>
+
+<!-- JS: Simulation + Plotly + Canvas globe (ionosphere) + Hooks -->
+<script>
+/* ========== CONFIG ========== */
+const FLASK_PREDICT_URL = '/api/predict'; // replace with your server
+const SIMULATION = true; // demo mode
+const HISTORY_POINTS = 120; // number of history points
+
+/* ========== STATE ========== */
+const state = {
+  t: [], vsw: [], bz: [], kp: [], tec: [], hf: [], gnss: [], snr: [], latency: [], packetLoss: [], score: []
+};
+
+/* ========== HELPERS ========== */
+function nowISO(){ return new Date().toLocaleString(); }
+function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+
+/* ========== PLOTLY INITS ========== */
+function initPlots(){
+  const t = state.t;
+  Plotly.newPlot('chartVsw', [{x:t,y:state.vsw,mode:'lines',line:{color:'#00bfb4'}}], {margin:{t:10,l:40}});
+  Plotly.newPlot('chartBz', [{x:t,y:state.bz,mode:'lines',line:{color:'#4b8f6a'}}], {margin:{t:10,l:40}});
+  Plotly.newPlot('chartKp', [{x:t,y:state.kp,mode:'lines',line:{color:'#67d9a3'}}], {margin:{t:10,l:40}});
+  Plotly.newPlot('chartTec', [{x:t,y:state.tec,mode:'lines',name:'TEC (est)'} , {x:t,y:state.hf,mode:'lines',name:'HF Index', yaxis:'y2'}], {
+    margin:{t:10,l:40},
+    yaxis:{title:'TEC (TECU)'},
+    yaxis2:{title:'HF Index', overlaying:'y', side:'right', range:[0,10]}
+  });
+}
+
+/* ========== UPDATE PLOTS ========== */
+function updatePlots(){
+  Plotly.update('chartVsw',{x:[state.t],y:[state.vsw]});
+  Plotly.update('chartBz',{x:[state.t],y:[state.bz]});
+  Plotly.update('chartKp',{x:[state.t],y:[state.kp]});
+  Plotly.update('chartTec',{x:[state.t,state.t],y:[state.tec,state.hf]});
+}
+
+/* ========== UI UPDATES ========== */
+function updateUI(){
+  const i = state.t.length - 1;
+  if(i<0) return;
+  document.getElementById('kvSpeed').textContent = (state.vsw[i] || '—') + ' km/s';
+  document.getElementById('kvBz').textContent = (state.bz[i] || '—') + ' nT';
+  document.getElementById('kvKp').textContent = (state.kp[i] || '—');
+  document.getElementById('kvTec').textContent = (state.tec[i] || '—') + ' TECU';
+  document.getElementById('lastUpdate').textContent = nowISO();
+
+  // metrics
+  document.getElementById('gnssErr').textContent = (state.gnss[i]||0).toFixed(1) + ' m';
+  document.getElementById('hfIndex').textContent = Math.round(state.hf[i]||0);
+  document.getElementById('linkSnr').textContent = (state.snr[i]||'—') + ' dB';
+  document.getElementById('linkLatency').textContent = (state.latency[i]||'—') + ' ms';
+
+  // compute alert score (placeholder; replace with ML API)
+  const score = state.score[i] ?? 0;
+  document.getElementById('alertScore').textContent = score.toFixed(2);
+  // badge and level
+  const badge = document.getElementById('alertLevelBadge');
+  if(score >= 0.75){ badge.textContent='SEVERE'; badge.className='alert-level level-severe'; }
+  else if(score >= 0.5){ badge.textContent='MODERATE'; badge.className='alert-level level-moderate'; }
+  else if(score >= 0.25){ badge.textContent='WATCH'; badge.className='alert-level level-watch'; }
+  else { badge.textContent='NOMINAL'; badge.className='alert-level level-safe'; }
+
+  // estimate predicted next event (simple heuristic demo)
+  if(score > 0.4){
+    const etaMin = Math.round(15 + 120 * score);
+    const next = new Date(Date.now() + etaMin*60000);
+    document.getElementById('predNext').textContent = next.toLocaleString();
+    document.getElementById('nextEta').textContent = 'Next ETA: ~' + etaMin + ' min';
+  } else {
+    document.getElementById('predNext').textContent = 'No event predicted';
+    document.getElementById('nextEta').textContent = 'Next ETA: —';
+  }
+
+  // recommendations (update list)
+  const recList = document.getElementById('recList');
+  recList.innerHTML = '';
+  if(score < 0.25){
+    recList.innerHTML = `<div class="rec-item"><div class="dot info"></div><div><strong>Nominal:</strong> No action required.</div></div>`;
+  } else if(score < 0.5){
+    recList.innerHTML = `<div class="rec-item"><div class="dot warn"></div><div><strong>Watch:</strong> Alert on-call RF engineers; verify backup routing for GNSS-dependent services.</div></div>`;
+  } else {
+    recList.innerHTML = `<div class="rec-item"><div class="dot danger"></div><div><strong>Action:</strong> Initiate failover to terrestrial links and reduce GEO transmit power where required.</div></div>`;
+  }
+}
+
+/* ========== ML Hook (placeholder) ========== */
+async function callPredictAPI(sample){
+  // Replace with actual POST to Flask
+  // Example:
+  // const resp = await fetch(FLASK_PREDICT_URL, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data: sample})});
+  // const json = await resp.json();
+  // return json.alert_score;
+
+  // Demo: return sample-based heuristic
+  const s = clamp(((sample.vsw - 400)/800 + (sample.tec/30) + (Math.abs(Math.min(0,sample.bz))/30) + (sample.kp/9)) / 4, 0, 1);
+  return s;
+}
+
+/* ========== TELEMETRY HANDLER ========== */
+async function ingestSample(sample){
+  // sample: {ts:Date, vsw, bz, kp, tec, hf, gnss, snr, latency, packetLoss}
+  state.t.push(sample.ts);
+  state.vsw.push(sample.vsw);
+  state.bz.push(sample.bz);
+  state.kp.push(sample.kp);
+  state.tec.push(sample.tec);
+  state.hf.push(sample.hf);
+  state.gnss.push(sample.gnss);
+  state.snr.push(sample.snr);
+  state.latency.push(sample.latency);
+  state.packetLoss.push(sample.packetLoss);
+
+  // limit arrays
+  if(state.t.length > HISTORY_POINTS){
+    ['t','vsw','bz','kp','tec','hf','gnss','snr','latency','packetLoss','score'].forEach(k => state[k].shift());
+  }
+
+  // call ML
+  const score = await callPredictAPI({vsw:sample.vsw, bz:sample.bz, kp:sample.kp, tec:sample.tec});
+  state.score.push(score);
+
+  // update UI & plots
+  updatePlots();
+  updateUI();
+
+  // update ionosphere visualization
+  createIonoBurstIfHigh(score, sample);
+}
+
+/* ========== SIMULATION ========== */
+function startSimulation(){
+  // initialize history
+  const now = new Date();
+  for(let i=HISTORY_POINTS; i>0; i--){
+    const ts = new Date(now - i*60*1000);
+    const vsw = 380 + Math.random()*140;
+    const bz = (Math.random()-0.5)*8;
+    const kp = Math.round(clamp(0 + Math.random()*3,0,9));
+    const tec = 4 + Math.random()*8;
+    const hf = Math.round(Math.random()*3);
+    const gnss = +(0.5 + Math.random()*1.5).toFixed(2);
+    const snr = +(14 + Math.random()*5).toFixed(1);
+    const latency = Math.round(30 + Math.random()*30);
+    const packetLoss = +(Math.random()*0.5).toFixed(2);
+    ingestSample({ts, vsw, bz, kp, tec, hf, gnss, snr, latency, packetLoss});
+  }
+
+  // then push live simulated samples
+  setInterval(()=>{
+    let vsw = state.vsw[state.vsw.length-1] || 420;
+    vsw = clamp(vsw + (Math.random()-0.5)*20, 200, 2000);
+    let tec = clamp((state.tec[state.tec.length-1]||6) + (Math.random()-0.5)*1.2, 1, 120);
+    let bz = (Math.random()-0.5)*10;
+    let kp = Math.round(clamp(1 + (Math.random()*2),0,9));
+    let hf = Math.round(clamp((tec/15)+Math.random()*2,0,10));
+    let gnss = +(0.5 + (Math.random()*2)).toFixed(2);
+    let snr = +(14 + Math.random()*5 - (tec/20)).toFixed(1); // worse SNR with high TEC
+    let latency = Math.round(30 + Math.random()*60 + tec/3);
+    let packetLoss = +(Math.random()*1.6).toFixed(2);
+
+    // Occasionally inject CME spike
+    if(Math.random() < 0.06){
+      vsw += 300 + Math.random()*800;
+      tec += 12 + Math.random()*40;
+      bz = -10 - Math.random()*20;
+      kp = Math.min(9, kp + 3 + Math.round(Math.random()*3));
+      hf = Math.min(10, hf + 4 + Math.round(Math.random()*3));
+      gnss += 3 + Math.random()*6;
+      snr -= 3 + Math.random()*6;
+      latency += 40 + Math.random()*120;
+      packetLoss += 2 + Math.random()*3;
+    }
+
+    ingestSample({ts:new Date(), vsw:Math.round(vsw), bz:Math.round(bz), kp, tec:Math.round(tec), hf, gnss: +(gnss.toFixed(2)), snr, latency, packetLoss});
+  }, 4000);
+}
+
+/* ========== IONOSPHERE CANVAS ANIMATION ========== */
+const canvas = document.getElementById('ionosphereCanvas');
+const ctx = canvas.getContext('2d');
+function fitCanvas(){
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * (window.devicePixelRatio || 1);
+  canvas.height = rect.height * (window.devicePixelRatio || 1);
+  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+}
+fitCanvas(); window.addEventListener('resize', fitCanvas);
+
+let ionoParticles = [];
+function randomLonLat(){ return {lon: (Math.random()*360)-180, lat: (Math.random()*140)-70}; }
+
+function drawIonosphere(){
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  ctx.clearRect(0,0,w,h);
+
+  // background gradient
+  const g = ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'#e6fbf6');
+  g.addColorStop(1,'#daf7ee');
+  ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+
+  // draw circular "layer"
+  const cx = w/2, cy = h/2, r = Math.min(w,h)/2 - 12;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,2*Math.PI); ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.fill();
+
+  // draw particle markers
+  for(let i=ionoParticles.length-1;i>=0;i--){
+    const p = ionoParticles[i];
+    p.age++;
+    if(p.age>p.life){ ionoParticles.splice(i,1); continue; }
+    const angle = ((p.lon + (p.age * 0.3 * p.speed)) % 360) * Math.PI/180;
+    const latY = p.lat/90; // -1..1
+    const x = cx + Math.cos(angle)* (r* (0.8 - latY*0.15));
+    const y = cy + Math.sin(angle)* (r* (0.8 - latY*0.15));
+    ctx.beginPath(); ctx.fillStyle = p.color; ctx.globalAlpha = 1 - p.age/p.life; ctx.arc(x,y,p.size,0,2*Math.PI); ctx.fill(); ctx.globalAlpha=1;
+  }
+
+  requestAnimationFrame(drawIonosphere);
+}
+
+function spawnIonoParticles(count, severity){
+  for(let i=0;i<count;i++){
+    const loc = randomLonLat();
+    ionoParticles.push({
+      lon: loc.lon,
+      lat: loc.lat,
+      size: 2 + Math.random()*4 + severity*2,
+      speed: 0.2 + Math.random()*0.8 + severity*0.6,
+      color: severity>0.6 ? 'rgba(255,90,60,0.95)' : (severity>0.35 ? 'rgba(255,165,60,0.9)' : 'rgba(6,170,140,0.9)'),
+      age: 0,
+      life: 100 + Math.floor(Math.random()*200)
+    });
+  }
+}
+
+function createIonoBurstIfHigh(score, sample){
+  if(score > 0.45){
+    spawnIonoParticles(6 + Math.round(18*score), score);
+  } else if(Math.random() < 0.01){
+    spawnIonoParticles(3, 0.2);
+  }
+}
+
+/* ========== REPORT DOWNLOADS ========== */
+function downloadReport(){
+  // CSV of last N points
+  let csv = 'ts,vsw,bz,kp,tec,hf,gnss,snr,latency,packetLoss,score\n';
+  for(let i=0;i<state.t.length;i++){
+    csv += `"${state.t[i].toISOString()}",${state.vsw[i]},${state.bz[i]},${state.kp[i]},${state.tec[i]},${state.hf[i]},${state.gnss[i]},${state.snr[i]},${state.latency[i]},${state.packetLoss[i]},${(state.score[i]||0).toFixed(3)}\n`;
+  }
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download = 'telecom_cme_report.csv'; a.click(); URL.revokeObjectURL(url);
+}
+
+function downloadJSON(){
+  const payload = state.t.map((ts,i)=>({
+    ts: ts.toISOString(), vsw: state.vsw[i], bz: state.bz[i], kp: state.kp[i], tec: state.tec[i],
+    hf: state.hf[i], gnss: state.gnss[i], snr: state.snr[i], latency: state.latency[i], packetLoss: state.packetLoss[i], score: state.score[i]
+  }));
+  const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='telecom_cme_report.json'; a.click(); URL.revokeObjectURL(url);
+}
+
+/* ========== INIT ========== */
+(function init(){
+  drawIonosphere();
+  if(SIMULATION){
+    startSimulation();
+  } else {
+    // TODO: connect to real telemetry (Firebase / Kafka / WebSocket)
+    // Example Firebase snippet:
+    // firebase.database().ref('/telemetry').limitToLast(1).on('child_added', snap => {
+    //   const v = snap.val();
+    //   ingestSample({ts:new Date(v.ts), vsw:v.Vsw, bz:v.Bz, kp:v.Kp, tec:v.TEC, hf:v.HF, gnss:v.GNSS, snr:v.SNR, latency:v.lat, packetLoss:v.pl});
+    // });
+  }
+  initPlots();
+})();
+</script>
+</body>
+</html>
